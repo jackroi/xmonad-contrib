@@ -389,8 +389,9 @@ removeEmptyCurrentProject = currentProject >>= removeEmptyProject
 -- | Check if a project is a "real" project. Useful for determining if
 -- the project returned by @currentProject@ is a project or just a
 -- normal workspace. TODO
-isRealProject :: Project -> Bool
-isRealProject p = isJust (projectStartHook p)
+isRealProject :: Project -> X Bool
+isRealProject p = return $ isJust (projectStartHook p)
+
 
 
 
