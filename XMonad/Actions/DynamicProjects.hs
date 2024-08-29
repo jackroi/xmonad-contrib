@@ -39,6 +39,15 @@ module XMonad.Actions.DynamicProjects
        , currentProject
        , activateProject
        , modifyProject
+
+
+       , removeProject
+       , removeEmptyProject
+       , removeProjectByName
+       , removeEmptyProjectByName
+       , removeCurrentProject
+       , removeEmptyCurrentProject
+       , isRealProject
        ) where
 
 --------------------------------------------------------------------------------
@@ -326,8 +335,6 @@ activateProject p = do
     ws   <- gets (W.integrate' . W.stack . W.workspace . W.current . windowset)
     home <- io getHomeDirectory
 
-    addHiddenWorkspace (projectName p <> "_act")
-
     -- Change to the project's directory.
     catchIO (setCurrentDirectory $ expandHome home $ projectDirectory p)
 
@@ -341,6 +348,66 @@ activateProject p = do
     expandHome home dir = case stripPrefix "~" dir of
       Nothing -> dir
       Just xs -> home ++ xs
+
+--------------------------------------------------------------------------------
+-- | Remove the given project.
+removeProject :: Project -> X ()
+removeProject p = do
+  let name = projectName p
+  removeWorkspaceByTag name -- also remove the associated workspace
+  XS.modify (\s -> s {projects = Map.delete name $ projects s})
+
+--------------------------------------------------------------------------------
+-- | Remove the given project if it has no windows.
+removeEmptyProject :: Project -> X ()
+removeEmptyProject p = do
+  let name = projectName p
+  whenX (isEmpty name) $ removeProject p
+
+--------------------------------------------------------------------------------
+-- | Remove a project by name.
+removeProjectByName :: ProjectName -> X ()
+removeProjectByName name = lookupProject name >>= flip whenJust removeProject
+
+--------------------------------------------------------------------------------
+-- | Remove a project by name if it has no windows.
+removeEmptyProjectByName :: ProjectName -> X ()
+removeEmptyProjectByName name =
+  lookupProject name >>= flip whenJust removeEmptyProject
+
+--------------------------------------------------------------------------------
+-- | Remove the current project.
+removeCurrentProject :: X ()
+removeCurrentProject = currentProject >>= removeProject
+
+--------------------------------------------------------------------------------
+-- | Remove the current project if it has no windows.
+removeEmptyCurrentProject :: X ()
+removeEmptyCurrentProject = currentProject >>= removeEmptyProject
+
+--------------------------------------------------------------------------------
+-- | Check if a project is a "real" project. Useful for determining if
+-- the project returned by @currentProject@ is a project or just a
+-- normal workspace. TODO
+isRealProject :: Project -> Bool
+isRealProject p = isJust (projectStartHook p)
+
+
+
+
+--------------------------------------------------------------------------------
+-- | Check if a workspace is empty, given its tag.
+isEmpty :: String -> X Bool
+isEmpty t = do wsl <- gets $ W.workspaces . windowset
+               let mws = find (\ws -> W.tag ws == t) wsl
+               return $ maybe True (isNothing . W.stack) mws
+
+--------------------------------------------------------------------------------
+-- | Activate a project by updating the working directory and
+-- possibly running its start-up hook.  This function is automatically
+-- invoked when the workspace changes.
+-- removEmptyProject :: Project -> X ()
+-- removEmptyProject p = d
 
 --------------------------------------------------------------------------------
 -- | Default project.
